@@ -17,7 +17,7 @@ func main() {
 	//task5()
 	//task6()
 	//task7()
-	task8()
+	//task8()
 }
 
 func task1_2() {
