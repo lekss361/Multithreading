@@ -15,6 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Debug list & show Dockerfile
+        run: |
+          echo "PWD = $(pwd)"
+          echo "------ ls -l ------"
+          ls -l .
+          echo "------ cat Dockerfile ------"
+          cat -n Dockerfile
+
 
       - name: Debug list files in workspace
         run: |
