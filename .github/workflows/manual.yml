@@ -32,15 +32,15 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          # вызываем PowerShell для создания папки
+          # создаём C:\temp заранее
           script: powershell -NoProfile -Command "if (-Not (Test-Path 'C:\\temp')) { New-Item -ItemType Directory -Force -Path 'C:\\temp' }"
 
-      - name: Copy image.tar to server
+      - name: Copy image.tar to server home
         run: |
           sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
             scp -o StrictHostKeyChecking=no -P 22 \
             image.tar \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/c/temp/image.tar
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~
 
       - name: Deploy container on server
         uses: appleboy/ssh-action@v0.1.7
@@ -50,9 +50,17 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
+            # Переместим образ из home в C:\temp
+            powershell -NoProfile -Command "Move-Item -Path '$env:USERPROFILE\\image.tar' -Destination 'C:\\temp\\image.tar' -Force"
+
+            # Загружаем образ в Docker
             docker load -i C:\temp\image.tar
+
+            # Останавливаем/удаляем старый контейнер
             if (docker ps -a --format "{{.Names}}" | findstr "^${{ env.IMAGE_NAME }}$") {
               docker stop ${{ env.IMAGE_NAME }}
               docker rm   ${{ env.IMAGE_NAME }}
             }
+
+            # Запускаем новый контейнер
             docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
