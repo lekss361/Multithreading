@@ -1,18 +1,52 @@
+name: Manual Deploy Docker to Win10
+
+on:
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: myapp
+  IMAGE_TAG: ${{ github.sha }}
+  TAR_NAME: ${{ env.IMAGE_NAME }}-${{ github.sha }}.tar
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build & Push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.REGISTRY_URL }}/myapp:${{ github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Deploy via SSH (password)
+      - name: Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+
+      - name: Save image to tarball
+        run: |
+          docker save $IMAGE_NAME:$IMAGE_TAG -o $TAR_NAME
+
+      - name: Prepare temp dir on server
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: New-Item -ItemType Directory -Force -Path C:\temp
+
+      - name: Copy tarball to server
+        uses: appleboy/scp-action@v0.1.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          source: ${{ env.TAR_NAME }}
+          target: C:\\temp\\${{ env.TAR_NAME }}
+
+      - name: Deploy container on server
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -20,9 +54,11 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
-            docker pull ${{ secrets.REGISTRY_URL }}/myapp:${{ github.sha }}
-            if (docker ps -a -q --filter "name=myapp") {
-              docker stop myapp
-              docker rm   myapp
+            docker load -i C:\temp\${{ env.TAR_NAME }}
+            # остановим старый контейнер, если он есть
+            if (docker ps -a --format "{{.Names}}" | FindStr "^${{ env.IMAGE_NAME }}$") {
+              docker stop ${{ env.IMAGE_NAME }}
+              docker rm   ${{ env.IMAGE_NAME }}
             }
-            docker run -d --name myapp --restart always -p 80:80 ${{ secrets.REGISTRY_URL }}/myapp:${{ github.sha }}
+            # запустим новый
+            docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
