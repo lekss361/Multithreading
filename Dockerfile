@@ -1,9 +1,7 @@
 FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
-- # кешируем модули
-- COPY go.mod go.sum ./
-- RUN go mod download
+
 
 # копируем весь исходник сразу
 COPY . .
