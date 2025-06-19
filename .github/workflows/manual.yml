@@ -20,19 +20,18 @@ jobs:
       - name: Save image to tarball
         run: docker save $IMAGE_NAME:$IMAGE_TAG -o image.tar
 
-      - name: Install sshpass for scp
+      - name: Install sshpass
         run: |
           sudo apt-get update
           sudo apt-get install -y sshpass
 
-      - name: Ensure remote temp folder exists
+      - name: Ensure C:\temp exists
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          # создаём C:\temp заранее
           script: powershell -NoProfile -Command "if (-Not (Test-Path 'C:\\temp')) { New-Item -ItemType Directory -Force -Path 'C:\\temp' }"
 
       - name: Copy image.tar to server home
@@ -49,18 +48,4 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          script: |
-            # Переместим образ из home в C:\temp
-            powershell -NoProfile -Command "Move-Item -Path '$env:USERPROFILE\\image.tar' -Destination 'C:\\temp\\image.tar' -Force"
-
-            # Загружаем образ в Docker
-            docker load -i C:\temp\image.tar
-
-            # Останавливаем/удаляем старый контейнер
-            if (docker ps -a --format "{{.Names}}" | findstr "^${{ env.IMAGE_NAME }}$") {
-              docker stop ${{ env.IMAGE_NAME }}
-              docker rm   ${{ env.IMAGE_NAME }}
-            }
-
-            # Запускаем новый контейнер
-            docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          script: powershell -NoProfile -Command "Move-Item -Path '$env:USERPROFILE\\image.tar' -Destination 'C:\\temp\\image.tar' -Force; docker load -i C:\\temp\\image.tar; if (docker ps -a --format '{{.Names}}' | findstr '^${{ env.IMAGE_NAME }}$') { docker stop ${{ env.IMAGE_NAME }}; docker rm ${{ env.IMAGE_NAME }} }; docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
