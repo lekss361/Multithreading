@@ -48,4 +48,8 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          script: powershell -NoProfile -Command "Move-Item -Path '$env:USERPROFILE\\image.tar' -Destination 'C:\\temp\\image.tar' -Force; docker load -i C:\\temp\\image.tar; if (docker ps -a --format '{{.Names}}' | findstr '^${{ env.IMAGE_NAME }}$') { docker stop ${{ env.IMAGE_NAME }}; docker rm ${{ env.IMAGE_NAME }} }; docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          script: |
+            powershell -NoProfile -Command 'Move-Item -Path "$env:USERPROFILE\image.tar" -Destination "C:\temp\image.tar" -Force'
+            powershell -NoProfile -Command 'docker load -i C:\temp\image.tar'
+            powershell -NoProfile -Command 'if (docker ps -a --format "{{.Names}}" | findstr "^${{ env.IMAGE_NAME }}$") { docker stop $env:IMAGE_NAME; docker rm $env:IMAGE_NAME }'
+            powershell -NoProfile -Command 'docker run -d --name $env:IMAGE_NAME --restart always -p 80:80 $env:IMAGE_NAME:$env:IMAGE_TAG'
