@@ -47,7 +47,6 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          # cmd.exe умеет mkdir, поэтому используем его
           script: mkdir C:\temp
 
       - name: Copy tarball to server
