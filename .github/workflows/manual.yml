@@ -39,6 +39,13 @@ jobs:
       - name: Save image to tarball
         run: |
           docker save $IMAGE_NAME:$IMAGE_TAG -o $IMAGE_NAME-$IMAGE_TAG.tar
+          
+      - name: Debug show SSH inputs
+        run: |
+          echo "HOST=$INPUT_HOST"
+          echo "USER=$INPUT_USERNAME"
+          echo "PWD len=$(echo -n $INPUT_PASSWORD | wc -c)"
+        shell: bash
 
       - name: Prepare temp dir on server
         uses: appleboy/ssh-action@v0.1.7
