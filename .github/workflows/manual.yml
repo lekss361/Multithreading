@@ -42,9 +42,9 @@ jobs:
           
       - name: Debug show SSH inputs
         run: |
-          echo "HOST=$INPUT_HOST"
-          echo "USER=$INPUT_USERNAME"
-          echo "PWD len=$(echo -n $INPUT_PASSWORD | wc -c)"
+          echo "HOST length: ${{ secrets.SERVER_HOST }}".length is $(echo -n "${{ secrets.SERVER_HOST }}" | wc -c)
+          echo "USER length: ${{ secrets.SERVER_USER }}".length is $(echo -n "${{ secrets.SERVER_USER }}" | wc -c)
+          echo -n "${{ secrets.SERVER_PASSWORD }}" | wc -c | awk '{print "PASSWORD length: " $1}'
         shell: bash
 
       - name: Prepare temp dir on server
