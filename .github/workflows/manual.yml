@@ -6,8 +6,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    # Объявляем переменные окружения прямо в рамках job
     env:
       IMAGE_NAME: myapp
       IMAGE_TAG: ${{ github.sha }}
@@ -15,59 +13,34 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Debug list & show Dockerfile
-        run: |
-          echo "PWD = $(pwd)"
-          echo "------ ls -l ------"
-          ls -l .
-          echo "------ cat Dockerfile ------"
-          cat -n Dockerfile
-
-
-      - name: Debug list files in workspace
-        run: |
-          echo "Working directory: $(pwd)"
-          ls -R .
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
 
       - name: Build Docker image
-        run: |
-          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+        run: docker build -t $IMAGE_NAME:$IMAGE_TAG .
 
       - name: Save image to tarball
-        run: |
-          docker save $IMAGE_NAME:$IMAGE_TAG -o $IMAGE_NAME-$IMAGE_TAG.tar
-          
-      - name: Debug show SSH inputs
-        run: |
-          echo "HOST length: ${{ secrets.SERVER_HOST }}".length is $(echo -n "${{ secrets.SERVER_HOST }}" | wc -c)
-          echo "USER length: ${{ secrets.SERVER_USER }}".length is $(echo -n "${{ secrets.SERVER_USER }}" | wc -c)
-          echo -n "${{ secrets.SERVER_PASSWORD }}" | wc -c | awk '{print "PASSWORD length: " $1}'
-        shell: bash
+        run: docker save $IMAGE_NAME:$IMAGE_TAG -o image.tar
 
-      - name: Prepare temp dir on server
+      - name: Install sshpass for scp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Ensure remote temp folder exists
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
+          # вызываем PowerShell для создания папки
           script: powershell -NoProfile -Command "if (-Not (Test-Path 'C:\\temp')) { New-Item -ItemType Directory -Force -Path 'C:\\temp' }"
 
-
-
-      - name: Copy tarball to server
-        uses: appleboy/scp-action@v0.1.2
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          port: 22
-          source: image.tar
-          target: C:\\temp\\image.tar
-          tar: false  
+      - name: Copy image.tar to server
+        run: |
+          sshpass -p "${{ secrets.SERVER_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no -P 22 \
+            image.tar \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/c/temp/image.tar
 
       - name: Deploy container on server
         uses: appleboy/ssh-action@v0.1.7
@@ -77,17 +50,9 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
-            docker load -i C:\temp\${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar
-
-            # Остановим старый контейнер (если есть) и уберём его
+            docker load -i C:\temp\image.tar
             if (docker ps -a --format "{{.Names}}" | findstr "^${{ env.IMAGE_NAME }}$") {
               docker stop ${{ env.IMAGE_NAME }}
               docker rm   ${{ env.IMAGE_NAME }}
             }
-
-            # Заведём новый контейнер
-            docker run -d `
-              --name ${{ env.IMAGE_NAME }} `
-              --restart always `
-              -p 80:80 `
-              ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            docker run -d --name ${{ env.IMAGE_NAME }} --restart always -p 80:80 ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
